@@ -277,6 +277,7 @@ def admin_users():
     cur = conn.cursor()
     cur.execute("SELECT id, name, email, role FROM users ORDER BY id ASC")
     rows = cur.fetchall()
+    print("LOGIN DEBUG:", email, row)   # <--- ADD THIS
     conn.close()
 
     return render_template("admin_users.html", users=rows)
