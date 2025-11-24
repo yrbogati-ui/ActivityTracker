@@ -1,324 +1,300 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Activity Tracker</title>
-
-    <!-- DataTables + jQuery -->
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.js"></script>
-
+    <title>Activity – {{ date_str }}</title>
     <style>
-        body { 
-            font-family: Arial;
-            background: #f7f7f7; 
-            padding: 20px; 
+        body {
+            font-family: Arial, sans-serif;
+            padding: 25px;
+            background: #fafafa;
         }
-        h2.section-title {
-            cursor: pointer;
-            user-select: none;
+        h2 { margin-bottom: 10px; }
+
+        .top-bar {
             display: flex;
-            align-items: center;
-            font-size: 22px;
-            margin-top: 40px;
-        }
-        .chevron {
-            margin-left: 10px;
-            transition: transform 0.25s ease;
-            font-size: 18px;
-        }
-        .chevron.rotate {
-            transform: rotate(180deg);
-        }
-
-        .summary-box {
-            background: white;
-            padding: 15px;
+            justify-content: space-between;
             margin-bottom: 20px;
+        }
+
+        .logout {
+            color: #0078ff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .section {
+            margin-top: 30px;
+        }
+
+        summary {
+            font-size: 18px;
+            cursor: pointer;
+            padding: 8px;
+            background: #e8f1ff;
             border-radius: 6px;
-            width: 320px;
-            font-size: 14px;
+            margin-bottom: 10px;
         }
 
-        table.dataTable thead input {
+        table {
             width: 100%;
-            padding: 3px;
-            box-sizing: border-box;
-        }
-
-        .section-container {
-            margin-bottom: 35px;
-            padding: 15px;
+            border-collapse: collapse;
             background: white;
             border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #0078ff;
+            color: white;
         }
 
-        button {
+        select, input[type=text] {
+            padding: 6px;
+            margin: 5px 0;
+        }
+
+        .update-btn, .undo-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
             cursor: pointer;
+        }
+
+        .update-btn {
+            background: #28a745;
+            color: white;
         }
 
         .undo-btn {
-            padding: 4px 8px;
-            font-size: 12px;
+            background: #ff5959;
+            color: white;
+        }
+
+        .bulk-bar {
+            margin: 15px 0;
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
         }
     </style>
-</head>
 
+    <script>
+        function toggleSelectAll(section, check) {
+            document.querySelectorAll("." + section + " .ev-check").forEach(cb => {
+                cb.checked = check;
+            });
+        }
+
+        function bulkSubmit(route, section) {
+            let ids = [];
+            document.querySelectorAll("." + section + " .ev-check:checked").forEach(cb => {
+                ids.push(parseInt(cb.value));
+            });
+
+            if (ids.length === 0) {
+                alert("No events selected.");
+                return;
+            }
+
+            const form = document.getElementById(section + "-bulk-form");
+            form.querySelector("input[name='event_ids']").value = JSON.stringify(ids);
+            form.action = route;
+            form.submit();
+        }
+    </script>
+</head>
 <body>
 
-<a href="/projects">Manage Projects</a> |
-<a href="/reports">Reports</a>
-<a href="/timeline">Timeline</a>
+<div class="top-bar">
+    <h2>Tracked Activity — {{ date_str }}</h2>
+    <a class="logout" href="/logout">Logout</a>
+</div>
 
-
-<div class="summary-box">
-    <h3>Today's Summary</h3>
-    {% for proj, hrs in summary.items() %}
-        <div><strong>{{ proj }}</strong>: {{ "%.2f"|format(hrs) }} hrs</div>
-    {% endfor %}
+<div>
+    <form method="get">
+        <strong>Date:</strong>
+        <input type="date" name="date" value="{{ date_str }}">
+        <button type="submit">Go</button>
+    </form>
 </div>
 
 
-<!-- ========================================================= -->
-<!-- =============== UNASSIGNED SECTION ====================== -->
-<!-- ========================================================= -->
+<!-- =============================================== -->
+<!-- =================== SUMMARY =================== -->
+<!-- =============================================== -->
+<div class="section">
+    <h3>Project Summary</h3>
 
-<div class="section-container">
-
-<h2>Unassigned Activities</h2>
-
-<form action="/bulk_update" method="POST" id="bulkFormUnassigned">
-    <input type="hidden" name="event_ids" id="bulkEventIdsUnassigned">
-
-    <select name="bulk_project_id">
-        {% for p in projects %}
-        <option value="{{ p[0] }}">{{ p[1] }}</option>
-        {% endfor %}
-    </select>
-
-    <button type="submit">Bulk Assign</button>
-</form>
-
-<br>
-
-<table id="unassignedTable" class="display" style="width:100%">
-    <thead>
+    <table>
         <tr>
-            <th><input type="checkbox" id="selectAllUnassigned"> Select All</th>
-            <th>App</th>
-            <th>Window</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Duration</th>
-        </tr>
-        <tr>
-            <th></th>
-            <th><input type="text" placeholder="Filter App"></th>
-            <th><input type="text" placeholder="Filter Window"></th>
-            <th><input type="text" placeholder="Filter Start"></th>
-            <th><input type="text" placeholder="Filter End"></th>
-            <th><input type="text" placeholder="Filter Duration"></th>
-        </tr>
-    </thead>
-
-    <tbody>
-        {% for e in unassigned %}
-        <tr>
-            <td><input type="checkbox" class="unassigned-checkbox" value="{{ e[0] }}"></td>
-            <td>{{ e[3] }}</td>
-            <td>{{ e[4][:60] }}</td>
-            <td>{{ e[1] }}</td>
-            <td>{{ e[2] }}</td>
-            <td>{{ "%.2f"|format(e[6]) }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-</div>
-
-
-<!-- ========================================================= -->
-<!-- =============== ASSIGNED SECTION (Fancy Collapse) ======= -->
-<!-- ========================================================= -->
-
-<div class="section-container">
-
-<h2 class="section-title" id="assignedToggle">
-    Assigned Activities (<span id="assignedCount">{{ assigned|length }}</span>)
-    <span class="chevron" id="assignedChevron">▼</span>
-</h2>
-
-<!-- Bulk Undo form -->
-<form action="/bulk_undo" method="POST" id="bulkFormAssigned" style="display:none; margin-top:10px;">
-    <input type="hidden" name="event_ids" id="bulkEventIdsAssigned">
-    <button type="submit">Bulk Undo</button>
-</form>
-
-<div id="assignedSection" style="display:none; margin-top:15px;">
-
-<table id="assignedTable" class="display" style="width:100%">
-    <thead>
-        <tr>
-            <th><input type="checkbox" id="selectAllAssigned"> Select All</th>
-            <th>App</th>
-            <th>Window</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Duration</th>
             <th>Project</th>
-            <th>Actions</th>
+            <th>Hours</th>
         </tr>
+        {% for p, hrs in summary.items() %}
         <tr>
-            <th></th>
-            <th><input type="text" placeholder="Filter App"></th>
-            <th><input type="text" placeholder="Filter Window"></th>
-            <th><input type="text" placeholder="Filter Start"></th>
-            <th><input type="text" placeholder="Filter End"></th>
-            <th><input type="text" placeholder="Filter Duration"></th>
-            <th><input type="text" placeholder="Filter Project"></th>
-            <th></th>
-        </tr>
-    </thead>
-
-    <tbody>
-        {% for e in assigned %}
-        <tr>
-            <td><input type="checkbox" class="assigned-checkbox" value="{{ e[0] }}"></td>
-            <td>{{ e[3] }}</td>
-            <td>{{ e[4][:60] }}</td>
-            <td>{{ e[1] }}</td>
-            <td>{{ e[2] }}</td>
-            <td>{{ "%.2f"|format(e[6]) }}</td>
-            <td>{{ e[5] }}</td>
-            <td>
-                <form action="/undo" method="POST" style="display:inline;">
-                    <input type="hidden" name="event_id" value="{{ e[0] }}">
-                    <button type="submit" class="undo-btn">Undo</button>
-                </form>
-            </td>
+            <td>{{ p }}</td>
+            <td>{{ hrs }}</td>
         </tr>
         {% endfor %}
-    </tbody>
+    </table>
+</div>
+
+
+<!-- ===================================================== -->
+<!-- ================= UNASSIGNED EVENTS ================== -->
+<!-- ===================================================== -->
+
+<div class="section">
+<details open>
+<summary>Unassigned Activities ({{ unassigned|length }})</summary>
+
+<div class="bulk-bar unassigned">
+    <label><input type="checkbox" onclick="toggleSelectAll('unassigned', this.checked)"> Select All</label>
+
+    <form id="unassigned-bulk-form" method="POST">
+        <input type="hidden" name="event_ids">
+
+        <select name="bulk_project_id">
+            {% for p in projects %}
+            <option value="{{ p[0] }}">{{ p[1] }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="button" onclick="bulkSubmit('/bulk_update', 'unassigned')" class="update-btn">Bulk Assign</button>
+        <button type="button" onclick="bulkSubmit('/bulk_undo', 'unassigned')" class="undo-btn">Bulk Undo</button>
+    </form>
+</div>
+
+
+<table class="unassigned">
+    <tr>
+        <th></th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Duration</th>
+        <th>App</th>
+        <th>Window</th>
+        <th>Assign</th>
+        <th>Undo</th>
+    </tr>
+
+    {% for e in unassigned %}
+    <tr>
+        <td><input type="checkbox" class="ev-check" value="{{ e[0] }}"></td>
+        <td>{{ e[1] }}</td>
+        <td>{{ e[2] }}</td>
+        <td>{{ "%.2f"|format(e[6]) }}</td>
+        <td>{{ e[3] }}</td>
+        <td>{{ e[4] }}</td>
+
+        <td>
+            <form method="POST" action="/update" style="display:flex; gap:5px;">
+                <input type="hidden" name="event_id" value="{{ e[0] }}">
+                <select name="project_id">
+                    {% for p in projects %}
+                    <option value="{{ p[0] }}">{{ p[1] }}</option>
+                    {% endfor %}
+                </select>
+                <button class="update-btn">✔</button>
+            </form>
+        </td>
+
+        <td>
+            <form method="POST" action="/undo">
+                <input type="hidden" name="event_id" value="{{ e[0] }}">
+                <button class="undo-btn">↺</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
 </table>
 
+</details>
 </div>
 
+
+<!-- ================================================== -->
+<!-- ================= ASSIGNED EVENTS ================ -->
+<!-- ================================================== -->
+
+<div class="section">
+<details>
+<summary>Assigned Activities ({{ assigned|length }})</summary>
+
+<div class="bulk-bar assigned">
+    <label><input type="checkbox" onclick="toggleSelectAll('assigned', this.checked)"> Select All</label>
+
+    <form id="assigned-bulk-form" method="POST">
+        <input type="hidden" name="event_ids">
+
+        <select name="bulk_project_id">
+            {% for p in projects %}
+            <option value="{{ p[0] }}">{{ p[1] }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="button" onclick="bulkSubmit('/bulk_update', 'assigned')" class="update-btn">Bulk Reassign</button>
+        <button type="button" onclick="bulkSubmit('/bulk_undo', 'assigned')" class="undo-btn">Bulk Undo</button>
+    </form>
 </div>
 
 
-<!-- ========================================================= -->
-<!-- ======================= SCRIPTS ========================== -->
-<!-- ========================================================= -->
+<table class="assigned">
+    <tr>
+        <th></th>
+        <th>Project</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Duration</th>
+        <th>App</th>
+        <th>Window</th>
+        <th>Reassign</th>
+        <th>Undo</th>
+    </tr>
 
-<script>
-$(document).ready(function() {
+    {% for e in assigned %}
+    <tr>
+        <td><input type="checkbox" class="ev-check" value="{{ e[0] }}"></td>
+        <td>{{ e[5] }}</td>
+        <td>{{ e[1] }}</td>
+        <td>{{ e[2] }}</td>
+        <td>{{ "%.2f"|format(e[6]) }}</td>
+        <td>{{ e[3] }}</td>
+        <td>{{ e[4] }}</td>
 
-    /* -------------------------------
-       UNASSIGNED TABLE
-    --------------------------------*/
-    var unassigned = $('#unassignedTable').DataTable({
-        orderCellsTop: true,
-        fixedHeader: true,
-        pageLength: 200
-    });
+        <td>
+            <form method="POST" action="/update" style="display:flex; gap:5px;">
+                <input type="hidden" name="event_id" value="{{ e[0] }}">
+                <select name="project_id">
+                    {% for p in projects %}
+                    <option value="{{ p[0] }}">{{ p[1] }}</option>
+                    {% endfor %}
+                </select>
+                <button class="update-btn">✔</button>
+            </form>
+        </td>
 
-    $('#unassignedTable thead tr:eq(1) th').each(function(i) {
-        $('input', this).on('keyup change', function() {
-            unassigned.column(i).search(this.value).draw();
-        });
-    });
+        <td>
+            <form method="POST" action="/undo">
+                <input type="hidden" name="event_id" value="{{ e[0] }}">
+                <button class="undo-btn">↺</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
 
-    $('#selectAllUnassigned').on('change', function() {
-        var checked = this.checked;
-        $('.unassigned-checkbox').each(function() {
-            if ($(this).closest('tr').is(':visible')) {
-                $(this).prop('checked', checked);
-            }
-        });
-    });
-
-    $('#bulkFormUnassigned').on('submit', function() {
-        var ids = [];
-        $('.unassigned-checkbox:checked').each(function() {
-            if ($(this).closest('tr').is(':visible')) {
-                ids.push($(this).val());
-            }
-        });
-        $('#bulkEventIdsUnassigned').val(JSON.stringify(ids));
-    });
-
-
-
-    /* -------------------------------
-       ASSIGNED TABLE
-    --------------------------------*/
-    var assigned = $('#assignedTable').DataTable({
-        orderCellsTop: true,
-        fixedHeader: true,
-        pageLength: 200
-    });
-
-    $('#assignedTable thead tr:eq(1) th').each(function(i) {
-        $('input', this).on('keyup change', function() {
-            assigned.column(i).search(this.value).draw();
-        });
-    });
-
-    // Select All for assigned
-    $('#selectAllAssigned').on('change', function() {
-        var checked = this.checked;
-        $('.assigned-checkbox').each(function() {
-            if ($(this).closest('tr').is(':visible')) {
-                $(this).prop('checked', checked);
-            }
-        });
-    });
-
-    // Bulk undo submit
-    $('#bulkFormAssigned').on('submit', function() {
-        var ids = [];
-        $('.assigned-checkbox:checked').each(function() {
-            if ($(this).closest('tr').is(':visible')) {
-                ids.push($(this).val());
-            }
-        });
-        $('#bulkEventIdsAssigned').val(JSON.stringify(ids));
-    });
-
-
-
-    /* -------------------------------
-       COLLAPSE / EXPAND (Fancy)
-    --------------------------------*/
-    function saveState(isOpen) {
-        localStorage.setItem("assignedOpen", isOpen ? "1" : "0");
-    }
-
-    function loadState() {
-        return localStorage.getItem("assignedOpen") === "1";
-    }
-
-    // Initial state based on memory
-    if (loadState()) {
-        $("#assignedSection").show();
-        $("#bulkFormAssigned").show();
-        $("#assignedChevron").addClass("rotate");
-    }
-
-    $("#assignedToggle").on("click", function() {
-        $("#assignedSection").slideToggle(250);
-        $("#bulkFormAssigned").slideToggle(250);
-
-        $("#assignedChevron").toggleClass("rotate");
-
-        var isOpen = $("#assignedChevron").hasClass("rotate");
-        saveState(isOpen);
-    });
-
-});
-</script>
+</details>
+</div>
 
 </body>
 </html>
