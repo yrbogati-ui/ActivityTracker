@@ -3,97 +3,374 @@
 <head>
     <title>Activity – {{ date_str }}</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 25px;
-            background: #fafafa;
+        :root {
+            --primary: #0b63ff;
+            --primary-soft: #e8f1ff;
+            --danger: #ff5959;
+            --success: #28a745;
+            --bg: #f3f5f9;
+            --card-bg: #ffffff;
+            --border: #e1e5f0;
+            --text-main: #1f2430;
+            --text-soft: #6b7280;
         }
-        h2 { margin-bottom: 10px; }
 
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            padding: 24px;
+            margin: 0;
+            background: radial-gradient(circle at top, #eff4ff, #f7f7fb);
+            color: var(--text-main);
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        /* Top layout */
         .top-bar {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
+        }
+
+        .top-left h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .top-left span {
+            font-size: 13px;
+            color: var(--text-soft);
+        }
+
+        .top-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border-color: var(--border);
+            color: var(--text-soft);
         }
 
         .logout {
-            color: #0078ff;
-            text-decoration: none;
-            font-weight: bold;
+            color: var(--danger);
+            font-weight: 600;
         }
 
+        /* Filters / toolbar */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .toolbar-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 8px 12px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.04);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .toolbar-card label {
+            font-size: 12px;
+            color: var(--text-soft);
+        }
+
+        .toolbar input[type="date"],
+        .toolbar input[type="text"],
+        .toolbar select {
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            font-size: 13px;
+            outline: none;
+            min-width: 120px;
+        }
+
+        .toolbar input[type="text"] {
+            min-width: 220px;
+        }
+
+        .toolbar button[type="submit"] {
+            border-radius: 999px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        /* Summary */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 14px 16px;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+            border: 1px solid var(--border);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 2.2fr 1.1fr;
+            gap: 16px;
+            margin-bottom: 26px;
+        }
+
+        .summary-title {
+            margin: 0 0 10px;
+            font-size: 16px;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid #f0f2f7;
+            font-size: 13px;
+        }
+
+        .summary-table th {
+            color: var(--text-soft);
+            font-weight: 600;
+        }
+
+        .pill {
+            display: inline-flex;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+        .pill-muted {
+            background: #eef1f7;
+            color: var(--text-soft);
+        }
+
+        /* Sections */
         .section {
-            margin-top: 30px;
+            margin-top: 18px;
+        }
+
+        details {
+            background: transparent;
         }
 
         summary {
-            font-size: 18px;
+            font-size: 15px;
             cursor: pointer;
-            padding: 8px;
-            background: #e8f1ff;
-            border-radius: 6px;
-            margin-bottom: 10px;
+            padding: 10px 12px;
+            background: var(--card-bg);
+            border-radius: 9px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        summary span.label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        summary .count-chip {
+            background: #eef1f7;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            color: var(--text-soft);
+        }
+
+        /* Bulk bar */
+        .bulk-bar {
+            margin: 10px 0 8px;
+            background: var(--card-bg);
+            padding: 10px 12px;
+            border-radius: 8px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            border: 1px solid var(--border);
+        }
+
+        .bulk-bar label {
+            font-size: 13px;
+        }
+
+        .bulk-bar select {
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            padding: 4px 8px;
+            font-size: 13px;
+        }
+
+        .update-btn,
+        .undo-btn {
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .update-btn {
+            background: var(--success);
+            color: white;
+        }
+
+        .undo-btn {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* Tables */
+        .table-wrapper {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+            border: 1px solid var(--border);
+            background: var(--card-bg);
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        th, td {
-            text-align: left;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        th {
-            background: #0078ff;
+
+        thead tr {
+            background: var(--primary);
             color: white;
         }
 
-        select, input[type=text] {
-            padding: 6px;
-            margin: 5px 0;
+        th, td {
+            text-align: left;
+            padding: 8px 9px;
+            border-bottom: 1px solid #eef0f6;
+            font-size: 12px;
         }
 
-        .update-btn, .undo-btn {
-            padding: 6px 10px;
-            border: none;
-            border-radius: 4px;
+        th.sortable {
             cursor: pointer;
         }
 
-        .update-btn {
-            background: #28a745;
-            color: white;
+        th.sortable::after {
+            content: "⇅";
+            font-size: 10px;
+            margin-left: 4px;
+            opacity: 0.6;
         }
 
-        .undo-btn {
-            background: #ff5959;
-            color: white;
+        tr:nth-child(even) td {
+            background: #fafbff;
         }
 
-        .bulk-bar {
-            margin: 15px 0;
-            background: white;
-            padding: 12px;
-            border-radius: 6px;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+        tr:hover td {
+            background: #eef4ff;
+        }
+
+        .duration-cell {
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
+        }
+
+        .duration-short {
+            color: #16a34a;
+        }
+
+        .duration-medium {
+            color: #ea580c;
+        }
+
+        .duration-long {
+            color: #b91c1c;
+        }
+
+        /* Forms inline */
+        .inline-form {
             display: flex;
-            gap: 10px;
             align-items: center;
+            gap: 4px;
+        }
+
+        .inline-form select {
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            padding: 3px 7px;
+            font-size: 12px;
+        }
+
+        .inline-form button {
+            padding-inline: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+            .top-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+            .toolbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 
     <script>
+        // Toggle select all checkboxes for a section ("assigned" / "unassigned")
         function toggleSelectAll(section, check) {
             document.querySelectorAll("." + section + " .ev-check").forEach(cb => {
                 cb.checked = check;
             });
         }
 
+        // Bulk assign / undo handler
         function bulkSubmit(route, section) {
             let ids = [];
             document.querySelectorAll("." + section + " .ev-check:checked").forEach(cb => {
@@ -110,189 +387,330 @@
             form.action = route;
             form.submit();
         }
+
+        // Global search across both tables
+        function globalFilter() {
+            const q = document.getElementById("search-input").value.toLowerCase();
+            const tables = document.querySelectorAll("table.filterable");
+            tables.forEach(tbl => {
+                const rows = tbl.querySelectorAll("tbody tr");
+                rows.forEach(row => {
+                    const text = row.innerText.toLowerCase();
+                    row.style.display = text.includes(q) ? "" : "none";
+                });
+            });
+        }
+
+        // Simple column sort (text / numeric)
+        function sortTable(tableId, colIndex, numeric=false) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+
+            const currentDir = table.getAttribute("data-sort-dir") || "asc";
+            const newDir = currentDir === "asc" ? "desc" : "asc";
+            table.setAttribute("data-sort-dir", newDir);
+
+            rows.sort((a, b) => {
+                const A = a.children[colIndex].innerText.trim();
+                const B = b.children[colIndex].innerText.trim();
+
+                if (numeric) {
+                    const nA = parseFloat(A) || 0;
+                    const nB = parseFloat(B) || 0;
+                    return newDir === "asc" ? (nA - nB) : (nB - nA);
+                } else {
+                    return newDir === "asc"
+                        ? A.localeCompare(B)
+                        : B.localeCompare(A);
+                }
+            });
+
+            rows.forEach(r => tbody.appendChild(r));
+        }
     </script>
 </head>
 <body>
 
+<!-- TOP BAR -->
 <div class="top-bar">
-    <h2>Tracked Activity — {{ date_str }}</h2>
-    <a class="logout" href="/logout">Logout</a>
+    <div class="top-left">
+        <h1>Tracked Activity — {{ date_str }}</h1>
+        {% if user_name %}
+        <span>Signed in as <strong>{{ user_name }}</strong></span>
+        {% endif %}
+    </div>
+    <div class="top-right">
+        <form method="get" style="display:inline;">
+            <input type="date" name="date" value="{{ date_str }}">
+            <button type="submit">Go</button>
+        </form>
+        <a class="btn btn-ghost" href="/export_csv/today">Export CSV</a>
+        <a class="btn logout" href="/logout">Logout</a>
+    </div>
 </div>
 
-<div>
-    <form method="get">
-        <strong>Date:</strong>
-        <input type="date" name="date" value="{{ date_str }}">
-        <button type="submit">Go</button>
-    </form>
+<!-- TOOLBAR -->
+<div class="toolbar">
+    <div class="toolbar-card">
+        <label for="search-input">Quick filter:</label>
+        <input id="search-input" type="text" placeholder="Search app, window, project…"
+               onkeyup="globalFilter()">
+    </div>
+    <div class="toolbar-card">
+        <span style="font-size:12px;color:var(--text-soft);">
+            Tip: Use bulk select + assign to quickly bucket similar entries.
+        </span>
+    </div>
+</div>
+
+<!-- SUMMARY -->
+<div class="summary-grid">
+    <div class="card">
+        <h3 class="summary-title">Project Summary (hours)</h3>
+        <table class="summary-table">
+            <thead>
+            <tr>
+                <th>Project</th>
+                <th>Hours</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% set total_hours = 0 %}
+            {% for p, hrs in summary.items() %}
+                {% set total_hours = total_hours + hrs %}
+                <tr>
+                    <td>{{ p }}</td>
+                    <td class="duration-cell">{{ "%.2f"|format(hrs) }}</td>
+                </tr>
+            {% endfor %}
+            {% if summary|length == 0 %}
+                <tr>
+                    <td colspan="2" style="color:var(--text-soft);font-size:12px;">
+                        No activity recorded for this date.
+                    </td>
+                </tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3 class="summary-title">Today</h3>
+        <p style="margin:4px 0 6px;font-size:13px;color:var(--text-soft);">
+            Total tracked project time (compressed):
+        </p>
+        <div style="font-size:24px;font-weight:600;">
+            {{ "%.2f"|format(total_hours) }} h
+        </div>
+        <p style="margin:8px 0 4px;font-size:12px;color:var(--text-soft);">
+            Projects active:
+            <span class="pill pill-muted">{{ summary|length }}</span>
+        </p>
+    </div>
 </div>
 
 
-<!-- =============================================== -->
-<!-- =================== SUMMARY =================== -->
-<!-- =============================================== -->
-<div class="section">
-    <h3>Project Summary</h3>
-
-    <table>
-        <tr>
-            <th>Project</th>
-            <th>Hours</th>
-        </tr>
-        {% for p, hrs in summary.items() %}
-        <tr>
-            <td>{{ p }}</td>
-            <td>{{ hrs }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-</div>
-
-
-<!-- ===================================================== -->
-<!-- ================= UNASSIGNED EVENTS ================== -->
-<!-- ===================================================== -->
-
+<!-- ================= UNASSIGNED EVENTS ================= -->
 <div class="section">
 <details open>
-<summary>Unassigned Activities ({{ unassigned|length }})</summary>
+    <summary>
+        <span class="label">
+            <strong>Unassigned Activities</strong>
+        </span>
+        <span class="count-chip">{{ unassigned|length }} entries</span>
+    </summary>
 
-<div class="bulk-bar unassigned">
-    <label><input type="checkbox" onclick="toggleSelectAll('unassigned', this.checked)"> Select All</label>
+    <div class="bulk-bar unassigned">
+        <label>
+            <input type="checkbox" onclick="toggleSelectAll('unassigned', this.checked)">
+            Select All
+        </label>
 
-    <form id="unassigned-bulk-form" method="POST">
-        <input type="hidden" name="event_ids">
+        <form id="unassigned-bulk-form" method="POST" style="display:flex;gap:8px;align-items:center;">
+            <input type="hidden" name="event_ids">
 
-        <select name="bulk_project_id">
-            {% for p in projects %}
-            <option value="{{ p[0] }}">{{ p[1] }}</option>
+            <select name="bulk_project_id">
+                {% for p in projects %}
+                <option value="{{ p[0] }}">{{ p[1] }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="button" onclick="bulkSubmit('/bulk_update', 'unassigned')" class="update-btn">
+                Bulk Assign
+            </button>
+            <button type="button" onclick="bulkSubmit('/bulk_undo', 'unassigned')" class="undo-btn">
+                Bulk Undo
+            </button>
+        </form>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="table-unassigned" class="filterable unassigned">
+            <thead>
+            <tr>
+                <th></th>
+                <th class="sortable" onclick="sortTable('table-unassigned', 1, false)">Start</th>
+                <th class="sortable" onclick="sortTable('table-unassigned', 2, false)">End</th>
+                <th class="sortable" onclick="sortTable('table-unassigned', 3, true)">Hours</th>
+                <th class="sortable" onclick="sortTable('table-unassigned', 4, false)">App</th>
+                <th class="sortable" onclick="sortTable('table-unassigned', 5, false)">Window</th>
+                <th>Assign</th>
+                <th>Undo</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for e in unassigned %}
+            <tr class="filter-row">
+                <td><input type="checkbox" class="ev-check" value="{{ e[0] }}"></td>
+                <td>{{ e[1] }}</td>
+                <td>{{ e[2] }}</td>
+                {% set hrs = e[6] %}
+                {% set cls = 'duration-short' %}
+                {% if hrs >= 1 and hrs < 3 %}
+                    {% set cls = 'duration-medium' %}
+                {% elif hrs >= 3 %}
+                    {% set cls = 'duration-long' %}
+                {% endif %}
+                <td class="duration-cell {{ cls }}">{{ "%.2f"|format(hrs) }}</td>
+                <td>{{ e[3] }}</td>
+                <td>{{ e[4] }}</td>
+
+                <td>
+                    <form method="POST" action="/update" class="inline-form">
+                        <input type="hidden" name="event_id" value="{{ e[0] }}">
+                        <select name="project_id">
+                            {% for p in projects %}
+                            <option value="{{ p[0] }}">{{ p[1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="update-btn" title="Assign">✔</button>
+                    </form>
+                </td>
+
+                <td>
+                    <form method="POST" action="/undo">
+                        <input type="hidden" name="event_id" value="{{ e[0] }}">
+                        <button class="undo-btn" title="Undo">↺</button>
+                    </form>
+                </td>
+            </tr>
             {% endfor %}
-        </select>
 
-        <button type="button" onclick="bulkSubmit('/bulk_update', 'unassigned')" class="update-btn">Bulk Assign</button>
-        <button type="button" onclick="bulkSubmit('/bulk_undo', 'unassigned')" class="undo-btn">Bulk Undo</button>
-    </form>
-</div>
-
-
-<table class="unassigned">
-    <tr>
-        <th></th>
-        <th>Start</th>
-        <th>End</th>
-        <th>Duration</th>
-        <th>App</th>
-        <th>Window</th>
-        <th>Assign</th>
-        <th>Undo</th>
-    </tr>
-
-    {% for e in unassigned %}
-    <tr>
-        <td><input type="checkbox" class="ev-check" value="{{ e[0] }}"></td>
-        <td>{{ e[1] }}</td>
-        <td>{{ e[2] }}</td>
-        <td>{{ "%.2f"|format(e[6]) }}</td>
-        <td>{{ e[3] }}</td>
-        <td>{{ e[4] }}</td>
-
-        <td>
-            <form method="POST" action="/update" style="display:flex; gap:5px;">
-                <input type="hidden" name="event_id" value="{{ e[0] }}">
-                <select name="project_id">
-                    {% for p in projects %}
-                    <option value="{{ p[0] }}">{{ p[1] }}</option>
-                    {% endfor %}
-                </select>
-                <button class="update-btn">✔</button>
-            </form>
-        </td>
-
-        <td>
-            <form method="POST" action="/undo">
-                <input type="hidden" name="event_id" value="{{ e[0] }}">
-                <button class="undo-btn">↺</button>
-            </form>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
-
+            {% if unassigned|length == 0 %}
+            <tr>
+                <td colspan="8" style="font-size:12px;color:var(--text-soft);padding:14px;">
+                    No unassigned activities for this date. 🥳
+                </td>
+            </tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
 </details>
 </div>
 
 
-<!-- ================================================== -->
-<!-- ================= ASSIGNED EVENTS ================ -->
-<!-- ================================================== -->
-
+<!-- ================= ASSIGNED EVENTS ================= -->
 <div class="section">
 <details>
-<summary>Assigned Activities ({{ assigned|length }})</summary>
+    <summary>
+        <span class="label">
+            <strong>Assigned Activities</strong>
+        </span>
+        <span class="count-chip">{{ assigned|length }} entries</span>
+    </summary>
 
-<div class="bulk-bar assigned">
-    <label><input type="checkbox" onclick="toggleSelectAll('assigned', this.checked)"> Select All</label>
+    <div class="bulk-bar assigned">
+        <label>
+            <input type="checkbox" onclick="toggleSelectAll('assigned', this.checked)">
+            Select All
+        </label>
 
-    <form id="assigned-bulk-form" method="POST">
-        <input type="hidden" name="event_ids">
+        <form id="assigned-bulk-form" method="POST" style="display:flex;gap:8px;align-items:center;">
+            <input type="hidden" name="event_ids">
 
-        <select name="bulk_project_id">
-            {% for p in projects %}
-            <option value="{{ p[0] }}">{{ p[1] }}</option>
+            <select name="bulk_project_id">
+                {% for p in projects %}
+                <option value="{{ p[0] }}">{{ p[1] }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="button" onclick="bulkSubmit('/bulk_update', 'assigned')" class="update-btn">
+                Bulk Reassign
+            </button>
+            <button type="button" onclick="bulkSubmit('/bulk_undo', 'assigned')" class="undo-btn">
+                Bulk Undo
+            </button>
+        </form>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="table-assigned" class="filterable assigned">
+            <thead>
+            <tr>
+                <th></th>
+                <th class="sortable" onclick="sortTable('table-assigned', 1, false)">Project</th>
+                <th class="sortable" onclick="sortTable('table-assigned', 2, false)">Start</th>
+                <th class="sortable" onclick="sortTable('table-assigned', 3, false)">End</th>
+                <th class="sortable" onclick="sortTable('table-assigned', 4, true)">Hours</th>
+                <th class="sortable" onclick="sortTable('table-assigned', 5, false)">App</th>
+                <th class="sortable" onclick="sortTable('table-assigned', 6, false)">Window</th>
+                <th>Reassign</th>
+                <th>Undo</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for e in assigned %}
+            <tr class="filter-row">
+                <td><input type="checkbox" class="ev-check" value="{{ e[0] }}"></td>
+                <td>{{ e[5] }}</td>
+                <td>{{ e[1] }}</td>
+                <td>{{ e[2] }}</td>
+                {% set hrs = e[6] %}
+                {% set cls = 'duration-short' %}
+                {% if hrs >= 1 and hrs < 3 %}
+                    {% set cls = 'duration-medium' %}
+                {% elif hrs >= 3 %}
+                    {% set cls = 'duration-long' %}
+                {% endif %}
+                <td class="duration-cell {{ cls }}">{{ "%.2f"|format(hrs) }}</td>
+                <td>{{ e[3] }}</td>
+                <td>{{ e[4] }}</td>
+
+                <td>
+                    <form method="POST" action="/update" class="inline-form">
+                        <input type="hidden" name="event_id" value="{{ e[0] }}">
+                        <select name="project_id">
+                            {% for p in projects %}
+                            <option value="{{ p[0] }}">{{ p[1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="update-btn" title="Reassign">✔</button>
+                    </form>
+                </td>
+
+                <td>
+                    <form method="POST" action="/undo">
+                        <input type="hidden" name="event_id" value="{{ e[0] }}">
+                        <button class="undo-btn" title="Undo">↺</button>
+                    </form>
+                </td>
+            </tr>
             {% endfor %}
-        </select>
 
-        <button type="button" onclick="bulkSubmit('/bulk_update', 'assigned')" class="update-btn">Bulk Reassign</button>
-        <button type="button" onclick="bulkSubmit('/bulk_undo', 'assigned')" class="undo-btn">Bulk Undo</button>
-    </form>
-</div>
-
-
-<table class="assigned">
-    <tr>
-        <th></th>
-        <th>Project</th>
-        <th>Start</th>
-        <th>End</th>
-        <th>Duration</th>
-        <th>App</th>
-        <th>Window</th>
-        <th>Reassign</th>
-        <th>Undo</th>
-    </tr>
-
-    {% for e in assigned %}
-    <tr>
-        <td><input type="checkbox" class="ev-check" value="{{ e[0] }}"></td>
-        <td>{{ e[5] }}</td>
-        <td>{{ e[1] }}</td>
-        <td>{{ e[2] }}</td>
-        <td>{{ "%.2f"|format(e[6]) }}</td>
-        <td>{{ e[3] }}</td>
-        <td>{{ e[4] }}</td>
-
-        <td>
-            <form method="POST" action="/update" style="display:flex; gap:5px;">
-                <input type="hidden" name="event_id" value="{{ e[0] }}">
-                <select name="project_id">
-                    {% for p in projects %}
-                    <option value="{{ p[0] }}">{{ p[1] }}</option>
-                    {% endfor %}
-                </select>
-                <button class="update-btn">✔</button>
-            </form>
-        </td>
-
-        <td>
-            <form method="POST" action="/undo">
-                <input type="hidden" name="event_id" value="{{ e[0] }}">
-                <button class="undo-btn">↺</button>
-            </form>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
-
+            {% if assigned|length == 0 %}
+            <tr>
+                <td colspan="9" style="font-size:12px;color:var(--text-soft);padding:14px;">
+                    Nothing assigned yet. Once you assign activities from above, they’ll appear here.
+                </td>
+            </tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
 </details>
 </div>
 
