@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Timeline View</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f5f7;
+            padding: 20px;
+        }
+
+        a {
+            text-decoration: none;
+            color: #007bff;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+
+        #chart {
+            margin-top: 10px;
+        }
+
+        .axis text {
+            fill: #555;
+            font-size: 11px;
+        }
+
+        .axis line,
+        .axis path {
+            stroke: #ccc;
+        }
+
+        .bar {
+            stroke: rgba(0,0,0,0.15);
+            stroke-width: 0.5;
+        }
+
+        .row-label {
+            font-size: 12px;
+            fill: #444;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.94);
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            max-width: 320px;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            z-index: 10;
+        }
+
+        .tooltip-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .tooltip-line {
+            opacity: 0.85;
+        }
+
+        .cursor-line {
+            stroke: rgba(0,0,0,0.25);
+            stroke-width: 1;
+            stroke-dasharray: 3 3;
+        }
+
+        .now-line {
+            stroke: #ff3b30;
+            stroke-width: 2;
+        }
+
+        .now-pulse {
+            fill: #ff3b30;
+        }
+
+        .time-label {
+            fill: #666;
+            font-size: 11px;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .controls input[type="date"] {
+            padding: 4px 6px;
+            font-size: 13px;
+        }
+
+        .controls button {
+            padding: 4px 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-bar">
+    <div>
+        <a href="/">← Back to Activities</a>
+    </div>
+    <div class="controls">
+        <form method="GET" action="/timeline" style="display:flex; align-items:center; gap:6px;">
+            <span>Date:</span>
+            <input type="date" name="date" value="{{ date_str }}">
+            <button type="submit">Load</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Timeline — {{ date_str }}</h3>
+    <div id="legend" class="legend"></div>
+    <div id="chart"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+    const data = {{ blocks|tojson }};
+    const isToday = {{ 'true' if is_today else 'false' }};
+
+    if (!data || data.length === 0) {
+        document.getElementById('chart').innerHTML = "<em>No activity recorded for this date.</em>";
+    } else {
+        const margin = { top: 30, right: 30, bottom: 40, left: 80 };
+        const rowHeight = 26;
+        const rowGap = 10;
+        const width = 1200;
+
+        const parseTime = d3.isoParse;
+
+        data.forEach(d => {
+            d.start = parseTime(d.start);
+            d.end = parseTime(d.end);
+        });
+
+        // Unique projects as rows
+        const projects = Array.from(new Set(data.map(d => d.project)));
+        const totalDuration = d3.sum(data, d => d.duration);
+
+        const height = projects.length * (rowHeight + rowGap) + margin.top + margin.bottom + 40;
+
+        const minTime = d3.min(data, d => d.start);
+        const maxTime = d3.max(data, d => d.end);
+
+        const xBase = d3.scaleTime()
+            .domain([minTime, maxTime])
+            .range([0, width]);
+
+        let x = xBase.copy();
+
+        const y = d3.scaleBand()
+            .domain(projects)
+            .range([0, projects.length * (rowHeight + rowGap)])
+            .paddingInner(0.3);
+
+        const color = d3.scaleOrdinal()
+            .domain(projects)
+            .range(d3.schemeTableau10.concat(d3.schemeSet3));
+
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const tooltip = d3.select("#tooltip");
+
+        // Legend
+        const legend = d3.select("#legend");
+        projects.forEach(p => {
+            const item = legend.append("div").attr("class", "legend-item");
+            item.append("div")
+                .attr("class", "legend-color")
+                .style("background", color(p));
+            item.append("span").text(p);
+        });
+
+        // Row labels
+        svg.selectAll(".row-label")
+            .data(projects)
+            .enter()
+            .append("text")
+            .attr("class", "row-label")
+            .attr("x", -10)
+            .attr("y", d => y(d) + rowHeight / 2)
+            .attr("dy", "0.35em")
+            .attr("text-anchor", "end")
+            .text(d => d);
+
+        // Bars
+        const barsGroup = svg.append("g").attr("class", "bars-group");
+
+        const bars = barsGroup.selectAll(".bar")
+            .data(data)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", d => x(d.start))
+            .attr("y", d => y(d.project) + (rowHeight - 16) / 2)
+            .attr("width", d => Math.max(2, x(d.end) - x(d.start)))
+            .attr("height", 16)
+            .attr("rx", 5)
+            .attr("ry", 5)
+            .attr("fill", d => color(d.project))
+            .on("mousemove", (event, d) => {
+                const percent = totalDuration ? ((d.duration / totalDuration) * 100).toFixed(1) : 0;
+                tooltip
+                    .style("opacity", 1)
+                    .html(`
+                        <div class="tooltip-title">${d.project}</div>
+                        <div class="tooltip-line">${d.app}</div>
+                        <div class="tooltip-line">${d.title}</div>
+                        <div class="tooltip-line">
+                            ${d.start.toLocaleTimeString()} – ${d.end.toLocaleTimeString()}
+                        </div>
+                        <div class="tooltip-line">
+                            ${d.duration} min (${percent}% of tracked time)
+                        </div>
+                    `)
+                    .style("left", (event.pageX + 12) + "px")
+                    .style("top", (event.pageY - 40) + "px");
+            })
+            .on("mouseleave", () => {
+                tooltip.style("opacity", 0);
+            });
+
+        // Time axis
+        const axisY = projects.length * (rowHeight + rowGap) + 5;
+
+        let axis = svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0, ${axisY})`)
+            .call(d3.axisBottom(x).ticks(8));
+
+        // Cursor line & time label
+        const cursorGroup = svg.append("g");
+        const cursorLine = cursorGroup.append("line")
+            .attr("class", "cursor-line")
+            .attr("y1", 0)
+            .attr("y2", axisY);
+
+        const cursorTimeLabel = cursorGroup.append("text")
+            .attr("class", "time-label")
+            .attr("y", axisY + 15);
+
+        // Today marker
+        if (isToday && minTime && maxTime) {
+            const now = new Date();
+            if (now >= minTime && now <= maxTime) {
+                const nowX = x(now);
+                const nowGroup = svg.append("g");
+
+                nowGroup.append("line")
+                    .attr("class", "now-line")
+                    .attr("x1", nowX)
+                    .attr("x2", nowX)
+                    .attr("y1", 0)
+                    .attr("y2", axisY);
+
+                nowGroup.append("circle")
+                    .attr("class", "now-pulse")
+                    .attr("cx", nowX)
+                    .attr("cy", -5)
+                    .attr("r", 4);
+            }
+        }
+
+        // Overlay for mouse tracking + zoom
+        const overlay = svg.append("rect")
+            .attr("class", "overlay")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", width)
+            .attr("height", axisY)
+            .style("fill", "transparent")
+            .style("pointer-events", "all")
+            .on("mousemove", onMouseMove)
+            .on("mouseleave", () => {
+                cursorTimeLabel.text("");
+            });
+
+        function onMouseMove(event) {
+            const [mx] = d3.pointer(event);
+            const t = x.invert(mx);
+            cursorLine
+                .attr("x1", mx)
+                .attr("x2", mx);
+
+            cursorTimeLabel
+                .attr("x", mx + 4)
+                .text(t.toLocaleTimeString());
+        }
+
+        // Zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.5, 10])
+            .translateExtent([[0, 0], [width, axisY]])
+            .on("zoom", (event) => {
+                const zx = event.transform.rescaleX(xBase);
+                x = zx;
+
+                bars
+                    .attr("x", d => x(d.start))
+                    .attr("width", d => Math.max(2, x(d.end) - x(d.start)));
+
+                axis.call(d3.axisBottom(x).ticks(8));
+            });
+
+        svg.call(zoom);
+    }
+</script>
+
+</body>
+</html>

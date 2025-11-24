@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSV Reports</title>
+    <style>
+        body { font-family: Arial; background: #f7f7f7; padding: 20px; }
+        div.box { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; width: 350px; }
+        input { padding: 5px; }
+    </style>
+</head>
+<body>
+
+<h2>CSV Reports</h2>
+
+<div class="box">
+    <h3>Export Today</h3>
+    <a href="/export_csv/today">Download CSV</a>
+</div>
+
+<div class="box">
+    <h3>Export by Date Range</h3>
+    <form action="/export_csv/range" method="POST">
+        Start Date: <input type="date" name="start"><br><br>
+        End Date: <input type="date" name="end"><br><br>
+        <button type="submit">Download</button>
+    </form>
+</div>
+
+<div class="box">
+    <h3>Export Project Summary</h3>
+    <a href="/export_csv/summary">Download Project Summary CSV</a>
+</div>
+
+<br>
+<a href="/">← Back to Activities</a>
+
+</body>
+</html>

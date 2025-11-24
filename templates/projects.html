@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manage Projects</title>
+    <style>
+        body { font-family: Arial; background: #f7f7f7; padding: 20px; }
+        table { background: white; border-collapse: collapse; width: 300px; }
+        th, td { padding: 10px; border-bottom: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<h2>Projects</h2>
+
+<table>
+    <tr>
+        <th>Name</th>
+        <th>Delete</th>
+    </tr>
+    {% for p in projects %}
+    <tr>
+        <td>{{ p[1] }}</td>
+        <td><a href="/delete_project/{{ p[0] }}">Delete</a></td>
+    </tr>
+    {% endfor %}
+</table>
+
+<br>
+
+<h3>Add New Project</h3>
+<form action="/add_project" method="POST">
+    <input type="text" name="project_name" placeholder="Project Name" required>
+    <button type="submit">Add</button>
+</form>
+
+<br>
+<a href="/">← Back to Activities</a>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: activitytracker
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn ui:app"
