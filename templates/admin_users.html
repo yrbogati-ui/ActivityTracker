@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Management</title>
+    <style>
+        body { font-family: Arial; margin: 30px; }
+        table { border-collapse: collapse; width: 80%; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; }
+        th { background: #f4f4f4; }
+        input { padding: 6px; margin: 4px; }
+        select { padding: 6px; }
+        .create-box {
+            padding: 15px;
+            border: 1px solid #ddd;
+            width: 350px;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+
+<h2>User Management</h2>
+
+<div class="create-box">
+    <h3>Add New User</h3>
+    <form action="/admin/users/add" method="POST">
+        <input type="text" name="name" placeholder="Name" required><br>
+        <input type="email" name="email" placeholder="Email" required><br>
+        <input type="password" name="password" placeholder="Password" required><br>
+
+        <label>Role:</label>
+        <select name="role">
+            <option value="user">Regular User</option>
+            <option value="admin">Admin</option>
+        </select><br><br>
+
+        <button type="submit">Create User</button>
+    </form>
+</div>
+
+<h3>Existing Users</h3>
+
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Role</th>
+    </tr>
+
+    {% for u in users %}
+    <tr>
+        <td>{{ u[0] }}</td>
+        <td>{{ u[1] }}</td>
+        <td>{{ u[2] }}</td>
+        <td>{{ u[3] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>

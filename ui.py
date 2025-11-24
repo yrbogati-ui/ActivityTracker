@@ -1,19 +1,20 @@
 import os
 import csv
 from io import StringIO
-from flask import Flask, render_template, request, redirect, Response
+from flask import Flask, render_template, request, redirect, Response, jsonify
 from datetime import datetime, date
 from difflib import SequenceMatcher
-
 import psycopg2
 from urllib.parse import urlparse
+import bcrypt
+
+app = Flask(__name__)
 
 # --------------------------------------------------------------------------
-# API TOKEN — required for client authentication
+# API TOKEN (for agent → server authentication)
 # --------------------------------------------------------------------------
-API_TOKEN = "xinfini-org-activitytracker-9082347908234"  # CHANGE THIS LATER
+API_TOKEN = "xinfini-org-activitytracker-9082347908234"
 
-from flask import jsonify
 
 def require_token(func):
     def wrapper(*args, **kwargs):
@@ -25,15 +26,12 @@ def require_token(func):
     return wrapper
 
 
-app = Flask(__name__)
-
 # --------------------------------------------------------------------------
-# DATABASE CONNECTION (Render style)
+# DATABASE CONNECTION
 # --------------------------------------------------------------------------
 DATABASE_URL = os.environ.get("DATABASE_URL")
-
 if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable missing.")
+    raise RuntimeError("DATABASE_URL is missing!")
 
 def db_conn():
     parsed = urlparse(DATABASE_URL)
@@ -45,12 +43,14 @@ def db_conn():
         port=parsed.port
     )
 
+
 # --------------------------------------------------------------------------
 # CONFIG
 # --------------------------------------------------------------------------
 IDLE_THRESHOLD_MINUTES = 3
 MICROSECONDS_THRESHOLD = 30
 MERGE_GAP_MINUTES = 5
+
 
 # --------------------------------------------------------------------------
 # UTILS
@@ -59,9 +59,8 @@ def similar(a, b):
     return SequenceMatcher(None, a or "", b or "").ratio()
 
 def _to_dt(value):
-    if isinstance(value, datetime):
-        return value
-    return datetime.fromisoformat(value)
+    return value if isinstance(value, datetime) else datetime.fromisoformat(value)
+
 
 # --------------------------------------------------------------------------
 # PROJECTS
@@ -74,23 +73,6 @@ def get_projects():
     conn.close()
     return rows
 
-def add_project(name):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO projects (name) 
-        VALUES (%s) 
-        ON CONFLICT (name) DO NOTHING
-    """, (name,))
-    conn.commit()
-    conn.close()
-
-def delete_project(pid):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM projects WHERE id = %s", (pid,))
-    conn.commit()
-    conn.close()
 
 # --------------------------------------------------------------------------
 # COMPRESSION ENGINE
@@ -122,10 +104,7 @@ def compress_events(raw):
     for ev in events[1:]:
         last = blocks[-1]
         gap = (ev["start"] - last["end"]).total_seconds() / 60
-        same_project = (ev["project"] == last["project"])
-        title_similarity = similar(ev["title"], last["title"])
 
-        # Insert break
         if gap > IDLE_THRESHOLD_MINUTES:
             break_block = {
                 "start": last["end"],
@@ -139,20 +118,17 @@ def compress_events(raw):
             blocks.append(ev)
             continue
 
-        # Micro events (<30s)
         if ev["duration"] < MICROSECONDS_THRESHOLD:
             last["end"] = ev["end"]
             last["duration"] += ev["duration"]
             continue
 
-        # Merge same project (<5m gap)
-        if same_project and gap <= MERGE_GAP_MINUTES:
+        if ev["project"] == last["project"] and gap <= MERGE_GAP_MINUTES:
             last["end"] = ev["end"]
             last["duration"] += ev["duration"]
             continue
 
-        # Merge by title similarity
-        if title_similarity > 0.55:
+        if similar(ev["title"], last["title"]) > 0.55:
             last["end"] = ev["end"]
             last["duration"] += ev["duration"]
             continue
@@ -161,8 +137,9 @@ def compress_events(raw):
 
     return blocks
 
+
 # --------------------------------------------------------------------------
-# SUMMARY (TODAY)
+# TODAY SUMMARY
 # --------------------------------------------------------------------------
 def summarize_today_compressed():
     today = date.today().isoformat()
@@ -182,7 +159,7 @@ def summarize_today_compressed():
     summary = {}
 
     for e in compressed:
-        proj = e["project"] or "Unassigned"
+        proj = e["project"]
         summary[proj] = summary.get(proj, 0) + e["duration"]
 
     for proj in summary:
@@ -190,51 +167,65 @@ def summarize_today_compressed():
 
     return summary
 
-# --------------------------------------------------------------------------
-# UPDATE / UNDO
-# --------------------------------------------------------------------------
-def update_project_single(event_id, project):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute(
-        "UPDATE activity_events SET project = %s WHERE id = %s",
-        (project, event_id)
-    )
-    conn.commit()
-    conn.close()
-
-def update_project_bulk(ids, project):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.executemany(
-        "UPDATE activity_events SET project = %s WHERE id = %s",
-        [(project, i) for i in ids]
-    )
-    conn.commit()
-    conn.close()
-
-def undo_single(event_id):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.execute(
-        "UPDATE activity_events SET project = 'Unassigned' WHERE id = %s",
-        (event_id,)
-    )
-    conn.commit()
-    conn.close()
-
-def undo_bulk(ids):
-    conn = db_conn()
-    cur = conn.cursor()
-    cur.executemany(
-        "UPDATE activity_events SET project = 'Unassigned' WHERE id = %s",
-        [(i,) for i in ids]
-    )
-    conn.commit()
-    conn.close()
 
 # --------------------------------------------------------------------------
-# MAIN VIEW
+# LOGIN API (AGENT LOGIN)
+# --------------------------------------------------------------------------
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
+
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({"error": "Invalid email"}), 401
+
+    user_id, pwd_hash = row
+
+    if not bcrypt.checkpw(password.encode("utf-8"), pwd_hash.encode("utf-8")):
+        return jsonify({"error": "Wrong password"}), 401
+
+    return jsonify({"status": "ok", "user_id": user_id})
+
+
+# --------------------------------------------------------------------------
+# BATCH EVENT INGESTION (agent → server)
+# --------------------------------------------------------------------------
+@app.route("/api/events/batch", methods=["POST"])
+@require_token
+def api_events_batch():
+    events = request.json.get("events", [])
+
+    conn = db_conn()
+    cur = conn.cursor()
+
+    for ev in events:
+        cur.execute("""
+            INSERT INTO activity_events (user_id, start_time, end_time, app_name, window_title, project)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            ev["user_id"],
+            ev["start_time"],
+            ev["end_time"],
+            ev["app_name"],
+            ev["window_title"],
+            ev.get("project", None)
+        ))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "count": len(events)})
+
+
+# --------------------------------------------------------------------------
+# MAIN UI VIEW
 # --------------------------------------------------------------------------
 @app.route("/")
 def view_events():
@@ -251,8 +242,6 @@ def view_events():
     rows = cur.fetchall()
     conn.close()
 
-    apps = sorted(set(r[3] for r in rows))
-
     enriched = []
     for e in rows:
         start = _to_dt(e[1])
@@ -260,15 +249,8 @@ def view_events():
         duration = (end - start).total_seconds() / 3600
         enriched.append(e + (duration,))
 
-    assigned = []
-    unassigned = []
-
-    for e in enriched:
-        proj = e[5] or "Unassigned"
-        if proj in ("Unassigned", "None"):
-            unassigned.append(e)
-        else:
-            assigned.append(e)
+    assigned = [e for e in enriched if e[5] not in ("Unassigned", None)]
+    unassigned = [e for e in enriched if e[5] in ("Unassigned", None)]
 
     return render_template(
         "events.html",
@@ -276,12 +258,12 @@ def view_events():
         unassigned=unassigned,
         summary=summarize_today_compressed(),
         projects=get_projects(),
-        date_str=date_str,
-        apps=apps
+        date_str=date_str
     )
 
+
 # --------------------------------------------------------------------------
-# ACTION ROUTES
+# UPDATE / UNDO
 # --------------------------------------------------------------------------
 @app.route("/update", methods=["POST"])
 def update():
@@ -292,44 +274,67 @@ def update():
     cur = conn.cursor()
     cur.execute("SELECT name FROM projects WHERE id = %s", (project_id,))
     proj = cur.fetchone()
-    conn.close()
 
     if proj:
-        update_project_single(event_id, proj[0])
+        cur.execute("UPDATE activity_events SET project = %s WHERE id = %s", (proj[0], event_id))
+        conn.commit()
 
+    conn.close()
     return redirect("/")
+
 
 @app.route("/undo", methods=["POST"])
 def undo():
-    undo_single(request.form.get("event_id"))
+    event_id = request.form.get("event_id")
+
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE activity_events SET project = 'Unassigned' WHERE id = %s", (event_id,))
+    conn.commit()
+    conn.close()
+
     return redirect("/")
 
+
+# --------------------------------------------------------------------------
+# BULK UPDATE
+# --------------------------------------------------------------------------
 @app.route("/bulk_update", methods=["POST"])
-def bulk_update_route():
+def bulk_update():
     project_id = request.form.get("bulk_project_id")
-    raw = request.form.get("event_ids")
-    ids = list(map(int, eval(raw))) if raw else []
+    ids = eval(request.form.get("event_ids", "[]"))
 
     conn = db_conn()
     cur = conn.cursor()
     cur.execute("SELECT name FROM projects WHERE id = %s", (project_id,))
     proj = cur.fetchone()
+
+    if proj:
+        cur.executemany(
+            "UPDATE activity_events SET project = %s WHERE id = %s",
+            [(proj[0], i) for i in ids]
+        )
+        conn.commit()
+
     conn.close()
-
-    if proj and ids:
-        update_project_bulk(ids, proj[0])
-
     return redirect("/")
+
 
 @app.route("/bulk_undo", methods=["POST"])
-def bulk_undo_route():
-    raw = request.form.get("event_ids")
-    ids = list(map(int, eval(raw))) if raw else []
+def bulk_undo():
+    ids = eval(request.form.get("event_ids", "[]"))
 
-    if ids:
-        undo_bulk(ids)
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.executemany(
+        "UPDATE activity_events SET project = 'Unassigned' WHERE id = %s",
+        [(i,) for i in ids]
+    )
+    conn.commit()
+    conn.close()
 
     return redirect("/")
+
 
 # --------------------------------------------------------------------------
 # PROJECT MANAGEMENT
@@ -338,17 +343,28 @@ def bulk_undo_route():
 def project_page():
     return render_template("projects.html", projects=get_projects())
 
+
 @app.route("/add_project", methods=["POST"])
-def add_project_route():
+def add_project():
     name = request.form.get("project_name")
     if name:
-        add_project(name)
+        conn = db_conn()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO projects (name) VALUES (%s) ON CONFLICT (name) DO NOTHING", (name,))
+        conn.commit()
+        conn.close()
     return redirect("/projects")
 
+
 @app.route("/delete_project/<pid>")
-def delete_project_route(pid):
-    delete_project(pid)
+def delete_project(pid):
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM projects WHERE id = %s", (pid,))
+    conn.commit()
+    conn.close()
     return redirect("/projects")
+
 
 # --------------------------------------------------------------------------
 # CSV EXPORTS
@@ -381,7 +397,7 @@ def export_today():
             e["project"],
             e["app"],
             e["title"],
-            round(e["duration"] / 60, 2)
+            round(e["duration"] / 60, 2),
         ])
 
     return Response(
@@ -389,6 +405,7 @@ def export_today():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=today_compressed.csv"}
     )
+
 
 @app.route("/export_csv/summary")
 def export_summary():
@@ -399,7 +416,7 @@ def export_summary():
                SUM(EXTRACT(EPOCH FROM (end_time - start_time)))/3600.0 AS hours
         FROM activity_events
         GROUP BY project
-        ORDERORDER BY hours DESC
+        ORDER BY hours DESC
     """)
     rows = cur.fetchall()
     conn.close()
@@ -417,8 +434,45 @@ def export_summary():
         headers={"Content-Disposition": "attachment; filename=project_summary.csv"}
     )
 
+@app.route("/admin/users")
+def admin_users():
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, email, role FROM users ORDER BY id ASC")
+    rows = cur.fetchall()
+    conn.close()
+
+    return render_template("admin_users.html", users=rows)
+
+@app.route("/admin/users/add", methods=["POST"])
+def admin_add_user():
+    name = request.form.get("name")
+    email = request.form.get("email")
+    password = request.form.get("password")
+    role = request.form.get("role", "user")
+
+    if not (name and email and password):
+        return "Missing fields", 400
+
+    pwd_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO users (name, email, password_hash, role)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (email) DO NOTHING
+    """, (name, email, pwd_hash, role))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/admin/users")
+
+
+
 # --------------------------------------------------------------------------
-# TIMELINE (MULTI-ROW FANCY VERSION)
+# TIMELINE VIEW
 # --------------------------------------------------------------------------
 @app.route("/timeline")
 def timeline():
@@ -451,72 +505,9 @@ def timeline():
 
     return render_template("timeline.html", blocks=blocks, date_str=date_str)
 
+
 # --------------------------------------------------------------------------
 # RUN
 # --------------------------------------------------------------------------
-
-# --------------------------------------------------------------------------
-# API ENDPOINTS — CLIENT → SERVER ACTIVITY INGESTION
-# --------------------------------------------------------------------------
-
-@app.route("/api/event", methods=["POST"])
-@require_token
-def api_add_event():
-    data = request.json
-
-    required = ["start_time", "end_time", "app_name", "window_title", "project"]
-    if not all(f in data for f in required):
-        return jsonify({"error": "Missing fields"}), 400
-
-    conn = db_conn()
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT INTO activity_events (start_time, end_time, app_name, window_title, project)
-        VALUES (%s, %s, %s, %s, %s)
-        RETURNING id
-    """, (
-        data["start_time"],
-        data["end_time"],
-        data["app_name"],
-        data["window_title"],
-        data.get("project"),
-    ))
-
-    event_id = cur.fetchone()[0]
-    conn.commit()
-    conn.close()
-
-    return jsonify({"status": "ok", "id": event_id})
-
-
-@app.route("/api/events/batch", methods=["POST"])
-@require_token
-def api_batch_events():
-    events = request.json.get("events", [])
-
-    if not isinstance(events, list):
-        return jsonify({"error": "Invalid payload"}), 400
-
-    conn = db_conn()
-    cur = conn.cursor()
-
-    for ev in events:
-        cur.execute("""
-            INSERT INTO activity_events (start_time, end_time, app_name, window_title, project)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (
-            ev["start_time"],
-            ev["end_time"],
-            ev["app_name"],
-            ev["window_title"],
-            ev.get("project"),
-        ))
-
-    conn.commit()
-    conn.close()
-
-    return jsonify({"status": "ok", "count": len(events)})
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
