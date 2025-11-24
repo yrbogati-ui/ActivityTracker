@@ -8,6 +8,23 @@ from difflib import SequenceMatcher
 import psycopg2
 from urllib.parse import urlparse
 
+# --------------------------------------------------------------------------
+# API TOKEN — required for client authentication
+# --------------------------------------------------------------------------
+API_TOKEN = "xinfini-org-activitytracker-9082347908234"  # CHANGE THIS LATER
+
+from flask import jsonify
+
+def require_token(func):
+    def wrapper(*args, **kwargs):
+        token = request.headers.get("X-API-Key")
+        if token != API_TOKEN:
+            return jsonify({"error": "Unauthorized"}), 401
+        return func(*args, **kwargs)
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+
 app = Flask(__name__)
 
 # --------------------------------------------------------------------------
@@ -437,5 +454,69 @@ def timeline():
 # --------------------------------------------------------------------------
 # RUN
 # --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+# API ENDPOINTS — CLIENT → SERVER ACTIVITY INGESTION
+# --------------------------------------------------------------------------
+
+@app.route("/api/event", methods=["POST"])
+@require_token
+def api_add_event():
+    data = request.json
+
+    required = ["start_time", "end_time", "app_name", "window_title", "project"]
+    if not all(f in data for f in required):
+        return jsonify({"error": "Missing fields"}), 400
+
+    conn = db_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO activity_events (start_time, end_time, app_name, window_title, project)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
+    """, (
+        data["start_time"],
+        data["end_time"],
+        data["app_name"],
+        data["window_title"],
+        data.get("project"),
+    ))
+
+    event_id = cur.fetchone()[0]
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "id": event_id})
+
+
+@app.route("/api/events/batch", methods=["POST"])
+@require_token
+def api_batch_events():
+    events = request.json.get("events", [])
+
+    if not isinstance(events, list):
+        return jsonify({"error": "Invalid payload"}), 400
+
+    conn = db_conn()
+    cur = conn.cursor()
+
+    for ev in events:
+        cur.execute("""
+            INSERT INTO activity_events (start_time, end_time, app_name, window_title, project)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            ev["start_time"],
+            ev["end_time"],
+            ev["app_name"],
+            ev["window_title"],
+            ev.get("project"),
+        ))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "count": len(events)})
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
