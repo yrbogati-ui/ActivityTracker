@@ -155,17 +155,32 @@ def login_page():
     conn.close()
 
     if not row:
+        print("LOGIN DEBUG: no such email →", email)
         return render_template("login.html", error="Invalid email or password")
 
     user_id, pwd_hash, role = row
 
-    if not bcrypt.checkpw(password.encode(), pwd_hash.encode()):
+    # --- FIX STARTS HERE ---
+    # Normalize password hash from DB
+    if isinstance(pwd_hash, bytes):
+        pwd_hash = pwd_hash.decode("utf-8", errors="ignore")
+
+    pwd_hash = pwd_hash.strip()
+
+    print("LOGIN DEBUG:", email, "| HASH:", pwd_hash[:20], "...")
+    # --- FIX ENDS HERE ---
+
+    # Perform bcrypt check
+    if not bcrypt.checkpw(password.encode("utf-8"), pwd_hash.encode("utf-8")):
+        print("LOGIN DEBUG: password mismatch")
         return render_template("login.html", error="Invalid email or password")
 
     session["user_id"] = user_id
     session["role"] = role
 
+    print("LOGIN SUCCESS for:", email)
     return redirect("/")
+
 
 @app.route("/logout")
 def logout():
