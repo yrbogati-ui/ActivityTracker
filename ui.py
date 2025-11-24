@@ -306,6 +306,10 @@ def admin_add_user():
 
     return redirect("/admin/users")
 
+@app.route("/version")
+def version():
+    return "VERSION 999"
+
 
 # --------------------------------------------------------------------------
 # CSV EXPORTS (USER ONLY)
